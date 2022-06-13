@@ -97,6 +97,7 @@ type spnegoAuthenticator struct {
 
 func (s *spnegoAuthenticator) do(req *http.Request, rt http.RoundTripper, hostname string) (*http.Response, error) {
 	provider := gospnego.New()
+	log.Printf("SPNEGO hostname: %s", hostname)
 	header, err := provider.GetSPNEGOHeader(hostname)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get SPNEGO header: %w", err)
