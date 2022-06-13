@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"unicode/utf16"
 
@@ -30,12 +29,15 @@ import (
 	"golang.org/x/crypto/md4" //nolint:staticcheck
 )
 
-type authenticator struct {
+type authenticator interface {
+	do(req *http.Request, rt http.RoundTripper, hostname string) (*http.Response, error)
+}
+
+type ntlmAuthenticator struct {
 	domain, username, hash string
 }
 
-func (a authenticator) do(req *http.Request, rt http.RoundTripper) (*http.Response, error) {
-	hostname, _ := os.Hostname() // in case of error, just use the zero value ("") as hostname
+func (a *ntlmAuthenticator) do(req *http.Request, rt http.RoundTripper, hostname string) (*http.Response, error) {
 	negotiate, err := ntlmssp.NewNegotiateMessage(a.domain, hostname)
 	if err != nil {
 		log.Printf("Error creating NTLM Type 1 (Negotiate) message: %v", err)
@@ -66,7 +68,7 @@ func (a authenticator) do(req *http.Request, rt http.RoundTripper) (*http.Respon
 	return rt.RoundTrip(req)
 }
 
-func (a authenticator) String() string {
+func (a *ntlmAuthenticator) String() string {
 	return fmt.Sprintf("%s@%s:%s", a.username, a.domain, a.hash)
 }
 

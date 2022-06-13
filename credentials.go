@@ -26,7 +26,7 @@ import (
 )
 
 type credentialSource interface {
-	getCredentials() (*authenticator, error)
+	getCredentials() (authenticator, error)
 }
 
 type terminal struct {
@@ -50,14 +50,14 @@ func (t *terminal) forUser(domain, username string) *terminal {
 	return t
 }
 
-func (t *terminal) getCredentials() (*authenticator, error) {
+func (t *terminal) getCredentials() (authenticator, error) {
 	fmt.Fprintf(t.stdout, "Password (for %s\\%s): ", t.domain, t.username)
 	buf, err := t.readPassword()
 	fmt.Println()
 	if err != nil {
 		return nil, fmt.Errorf("error reading password from stdin: %w", err)
 	}
-	return &authenticator{domain: t.domain, username: t.username, hash: getNtlmHash(buf)}, nil
+	return &ntlmAuthenticator{domain: t.domain, username: t.username, hash: getNtlmHash(buf)}, nil
 }
 
 type envVar struct {
@@ -68,7 +68,7 @@ func fromEnvVar(value string) *envVar {
 	return &envVar{value: value}
 }
 
-func (e *envVar) getCredentials() (*authenticator, error) {
+func (e *envVar) getCredentials() (authenticator, error) {
 	at := strings.IndexRune(e.value, '@')
 	colon := strings.IndexRune(e.value, ':')
 	if at == -1 || colon == -1 || at > colon {
@@ -78,5 +78,5 @@ func (e *envVar) getCredentials() (*authenticator, error) {
 	username := e.value[0:at]
 	hash := e.value[colon+1:]
 	log.Printf("Found credentials for %s\\%s in environment", domain, username)
-	return &authenticator{domain, username, hash}, nil
+	return &ntlmAuthenticator{domain, username, hash}, nil
 }

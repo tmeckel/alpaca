@@ -1,7 +1,7 @@
 // Copyright 2021 The Alpaca Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
+// you may not use this file except in compliance from the License.
 // You may obtain a copy of the License at
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
@@ -12,23 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !darwin
-// +build !darwin
-
 package main
 
-import (
-	"errors"
-)
-
-const keyringSupported = false
-
-type keyring struct{}
-
-func fromKeyring() *keyring {
-	return nil
+type spnego struct{
+	enableAuthNegotiatePort bool
 }
 
-func (k *keyring) getCredentials() (authenticator, error) {
-	return nil, errors.New("not yet implemented")
+func fromSpnego(enableAuthNegotiatePort *bool) *spnego {
+	return &spnego{
+		enableAuthNegotiatePort: *enableAuthNegotiatePort,
+	}
+}
+
+func (s *spnego) getCredentials() (authenticator, error) {
+	return &spnegoAuthenticator{
+		enableAuthNegotiatePort: s.enableAuthNegotiatePort,
+	}, nil
 }

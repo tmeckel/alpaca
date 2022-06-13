@@ -27,14 +27,16 @@ func TestTerminal(t *testing.T) {
 		readPassword: func() ([]byte, error) { return []byte("guest"), nil },
 		stdout:       new(bytes.Buffer),
 	}
-	a, err := fakeTerm.forUser("isis", "malory").getCredentials()
+	cred, err := fakeTerm.forUser("isis", "malory").getCredentials()
 	require.NoError(t, err)
+	a := cred.(*ntlmAuthenticator)
 	assert.Equal(t, "823893adfad2cda6e1a414f3ebdf58f7", a.hash)
 }
 
 func TestEnvVar(t *testing.T) {
-	a, err := fromEnvVar("malory@isis:823893adfad2cda6e1a414f3ebdf58f7").getCredentials()
+	cred, err := fromEnvVar("malory@isis:823893adfad2cda6e1a414f3ebdf58f7").getCredentials()
 	require.NoError(t, err)
+	a := cred.(*ntlmAuthenticator)
 	assert.Equal(t, "isis", a.domain)
 	assert.Equal(t, "malory", a.username)
 	assert.Equal(t, "823893adfad2cda6e1a414f3ebdf58f7", a.hash)

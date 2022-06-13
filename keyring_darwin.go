@@ -64,7 +64,7 @@ func (k *keyring) readPasswordFromKeychain(userPrincipal string) string {
 	return string(results[0].Data)
 }
 
-func (k *keyring) getCredentials() (*authenticator, error) {
+func (k *keyring) getCredentials() (authenticator, error) {
 	useKeychain, err := k.readDefaultForNoMAD("UseKeychain")
 	if err != nil {
 		return nil, err

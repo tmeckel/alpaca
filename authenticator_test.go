@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 
@@ -79,8 +80,9 @@ func TestNtlmAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
-	auth := &authenticator{"isis", "malory", getNtlmHash([]byte("guest"))}
-	resp, err = auth.do(req, tr)
+	auth := &ntlmAuthenticator{"isis", "malory", getNtlmHash([]byte("guest"))}
+	hostname, _ := os.Hostname()
+	resp, err = auth.do(req, tr, hostname)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

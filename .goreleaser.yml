@@ -1,0 +1,35 @@
+project_name: alpaca
+
+builds:
+  - binary: alpaca
+    flags:
+      - -a
+    ldflags:
+      - -s -w
+      - "-extldflags '-static'"
+      - -X main.BuildVersion={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+    # darwin requires xcode
+    # - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: linux
+        goarch: arm64
+
+archives:
+  - name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .RawVersion }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    format_overrides:
+    - goos: windows
+      format: zip
+    files:
+      - README.md
+      - LICENSE
+      - AUTHORS
