@@ -22,20 +22,23 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"unicode/utf16"
 
 	"github.com/Azure/go-ntlmssp"
+	gospnego "github.com/L11R/go-spnego"
 	"golang.org/x/crypto/md4" //nolint:staticcheck
 )
 
-type authenticator struct {
+type authenticator interface {
+	do(req *http.Request, rt http.RoundTripper, hostname string) (*http.Response, error)
+}
+
+type ntlmAuthenticator struct {
 	domain, username, hash string
 }
 
-func (a authenticator) do(req *http.Request, rt http.RoundTripper) (*http.Response, error) {
-	hostname, _ := os.Hostname() // in case of error, just use the zero value ("") as hostname
+func (a *ntlmAuthenticator) do(req *http.Request, rt http.RoundTripper, hostname string) (*http.Response, error) {
 	negotiate, err := ntlmssp.NewNegotiateMessage(a.domain, hostname)
 	if err != nil {
 		log.Printf("Error creating NTLM Type 1 (Negotiate) message: %v", err)
@@ -66,7 +69,7 @@ func (a authenticator) do(req *http.Request, rt http.RoundTripper) (*http.Respon
 	return rt.RoundTrip(req)
 }
 
-func (a authenticator) String() string {
+func (a *ntlmAuthenticator) String() string {
 	return fmt.Sprintf("%s@%s:%s", a.username, a.domain, a.hash)
 }
 
@@ -87,4 +90,18 @@ func toUnicode(s string) []byte {
 	b := bytes.Buffer{}
 	binary.Write(&b, binary.LittleEndian, &uints) //nolint:errcheck
 	return b.Bytes()
+}
+
+type spnegoAuthenticator struct {
+}
+
+func (s *spnegoAuthenticator) do(req *http.Request, rt http.RoundTripper, hostname string) (*http.Response, error) {
+	provider := gospnego.New()
+	header, err := provider.GetSPNEGOHeader(hostname)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get SPNEGO header: %w", err)
+	}
+
+	req.Header.Set("Proxy-Authorization", header)
+	return rt.RoundTrip(req)
 }

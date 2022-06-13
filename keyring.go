@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !darwin
 // +build !darwin
 
 package main
@@ -28,6 +29,6 @@ func fromKeyring() *keyring {
 	return nil
 }
 
-func (k *keyring) getCredentials() (*authenticator, error) {
+func (k *keyring) getCredentials() (authenticator, error) {
 	return nil, errors.New("not yet implemented")
 }

@@ -44,6 +44,7 @@ func main() {
 	domain := flag.String("d", "", "domain of the proxy account (for NTLM auth)")
 	username := flag.String("u", whoAmI(), "username of the proxy account (for NTLM auth)")
 	printHash := flag.Bool("H", false, "print hashed NTLM credentials for non-interactive use")
+	useSpnego := flag.Bool("k", false, "use SPNEGO (Kerberos) authentication")
 	version := flag.Bool("version", false, "print version number")
 	flag.Parse()
 
@@ -53,14 +54,16 @@ func main() {
 	}
 
 	var src credentialSource
-	if *domain != "" {
+	if *useSpnego {
+		src = fromSpnego();
+	} else if *domain != "" {
 		src = fromTerminal().forUser(*domain, *username)
 	} else if value := os.Getenv("NTLM_CREDENTIALS"); value != "" {
 		src = fromEnvVar(value)
 	} else if keyringSupported {
 		src = fromKeyring()
 	}
-	var a *authenticator
+	var a authenticator
 	if src != nil {
 		var err error
 		a, err = src.getCredentials()
@@ -86,7 +89,7 @@ func main() {
 	}
 }
 
-func createServer(host string, port int, pacurl string, a *authenticator) *http.Server {
+func createServer(host string, port int, pacurl string, a authenticator) *http.Server {
 	pacWrapper := NewPACWrapper(PACData{Port: port})
 	proxyFinder := NewProxyFinder(pacurl, pacWrapper)
 	proxyHandler := NewProxyHandler(a, getProxyFromContext, proxyFinder.blockProxy)
