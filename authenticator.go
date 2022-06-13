@@ -102,6 +102,7 @@ func (s *spnegoAuthenticator) do(req *http.Request, rt http.RoundTripper, hostna
 		return nil, fmt.Errorf("cannot get SPNEGO header: %w", err)
 	}
 
+	log.Printf("SPNEGO header: %s", header)
 	req.Header.Set("Proxy-Authorization", header)
 	return rt.RoundTrip(req)
 }
