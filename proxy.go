@@ -40,11 +40,10 @@ type proxyFunc func(*http.Request) (*url.URL, error)
 
 func NewProxyHandler(auth authenticator, proxy proxyFunc, block func(string)) ProxyHandler {
 	tr := &http.Transport{
-		Proxy:             proxy,
-		DisableKeepAlives: false,
-		MaxIdleConns:      8,
-		MaxConnsPerHost:   0,
-		TLSClientConfig:   tlsClientConfig,
+		Proxy:           proxy,
+		MaxIdleConns:    8,
+		MaxConnsPerHost: 0,
+		TLSClientConfig: tlsClientConfig,
 	}
 	return ProxyHandler{tr, auth, block}
 }
@@ -147,28 +146,32 @@ func (ph ProxyHandler) connectDirect(req *http.Request) (net.Conn, error) {
 
 func (ph ProxyHandler) connectViaProxy(req *http.Request, proxy *url.URL, auth authenticator) (net.Conn, error) {
 	id := req.Context().Value(contextKeyID)
+
+	proxy, err := ph.transport.Proxy(req)
+	if err != nil {
+		log.Printf("Failed to get Proxy for qreuest [%d] : %v", id, err)
+		return nil, err
+	}
+
 	var tr transport
 	defer tr.Close()
 	if err := tr.dial(proxy); err != nil {
 		log.Printf("[%d] Error dialling proxy %s: %v", id, proxy.Host, err)
 		return nil, err
 	}
-	resp, err := tr.RoundTrip(req)
+
+	var resp *http.Response
+	if proxy == nil || auth == nil {
+		resp, err = ph.transport.RoundTrip(req)
+	} else {
+		resp, err = auth.do(req, ph.transport, proxy.Host)
+	}
+
 	if err != nil {
 		log.Printf("[%d] Error reading CONNECT response: %v", id, err)
 		return nil, err
-	} else if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
-		log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
-		resp.Body.Close()
-		if err := tr.dial(proxy); err != nil {
-			log.Printf("[%d] Error re-dialling %s: %v", id, proxy.Host, err)
-			return nil, err
-		}
-		resp, err = auth.do(req, &tr, proxy.Host)
-		if err != nil {
-			return nil, err
-		}
 	}
+
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("[%d] Unexpected response status: %s", id, resp.Status)
