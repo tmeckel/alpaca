@@ -146,17 +146,6 @@ func (ph ProxyHandler) connectDirect(req *http.Request) (net.Conn, error) {
 
 func (ph ProxyHandler) connectViaProxy(req *http.Request, proxy *url.URL, auth authenticator) (net.Conn, error) {
 	id := req.Context().Value(contextKeyID)
-
-	if req.URL.Scheme != "https" {
-		req.URL.Scheme = "https"
-	}
-
-	proxy, err := ph.transport.Proxy(req)
-	if err != nil {
-		log.Printf("Failed to get Proxy for request [%d] : %v", id, err)
-		return nil, err
-	}
-
 	var tr transport
 	defer tr.Close()
 	if err := tr.dial(proxy); err != nil {
@@ -165,10 +154,11 @@ func (ph ProxyHandler) connectViaProxy(req *http.Request, proxy *url.URL, auth a
 	}
 
 	var resp *http.Response
+	var err error
 	if proxy == nil || auth == nil {
-		resp, err = ph.transport.RoundTrip(req)
+		resp, err = tr.RoundTrip(req)
 	} else {
-		resp, err = auth.do(req, ph.transport, proxy.Host)
+		resp, err = auth.do(req, &tr, proxy.Host)
 	}
 
 	if err != nil {
