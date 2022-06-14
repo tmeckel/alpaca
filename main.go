@@ -45,7 +45,7 @@ func main() {
 	username := flag.String("u", whoAmI(), "username of the proxy account (for NTLM auth)")
 	printHash := flag.Bool("H", false, "print hashed NTLM credentials for non-interactive use")
 	useSpnego := flag.Bool("k", false, "use SPNEGO (Kerberos) authentication")
-	enableAuthNegotiatePort := flag.Bool("s", false, "include port in generated Kerberos SPN")
+	enableAuthNegotiatePort := flag.Bool("P", false, "include port in generated Kerberos SPN")
 	version := flag.Bool("version", false, "print version number")
 	flag.Parse()
 
@@ -54,14 +54,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *useSpnego && (domain != nil || username != nil || *printHash) {
-		log.Printf("-k (use SPNEGO) mutually exclusive with -d (domain), -u (user) or -H (printHash)")
+	if *useSpnego && (*domain != "" || *printHash) {
+		log.Printf("-k (use SPNEGO) is mutually exclusive with -d (domain) and -H (printHash)")
 		os.Exit(1)
 	}
 
 	var src credentialSource
 	if *useSpnego {
-		src = fromSpnego(enableAuthNegotiatePort);
+		src = fromSpnego(enableAuthNegotiatePort)
 	} else if *domain != "" {
 		src = fromTerminal().forUser(*domain, *username)
 	} else if value := os.Getenv("NTLM_CREDENTIALS"); value != "" {
