@@ -39,7 +39,13 @@ type ProxyHandler struct {
 type proxyFunc func(*http.Request) (*url.URL, error)
 
 func NewProxyHandler(auth authenticator, proxy proxyFunc, block func(string)) ProxyHandler {
-	tr := &http.Transport{Proxy: proxy, TLSClientConfig: tlsClientConfig}
+	tr := &http.Transport{
+		Proxy:             proxy,
+		DisableKeepAlives: false,
+		MaxIdleConns:      8,
+		MaxConnsPerHost:   0,
+		TLSClientConfig:   tlsClientConfig,
+	}
 	return ProxyHandler{tr, auth, block}
 }
 
