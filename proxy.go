@@ -147,9 +147,13 @@ func (ph ProxyHandler) connectDirect(req *http.Request) (net.Conn, error) {
 func (ph ProxyHandler) connectViaProxy(req *http.Request, proxy *url.URL, auth authenticator) (net.Conn, error) {
 	id := req.Context().Value(contextKeyID)
 
+	if req.URL.Scheme != "https" {
+		req.URL.Scheme = "https"
+	}
+
 	proxy, err := ph.transport.Proxy(req)
 	if err != nil {
-		log.Printf("Failed to get Proxy for qreuest [%d] : %v", id, err)
+		log.Printf("Failed to get Proxy for request [%d] : %v", id, err)
 		return nil, err
 	}
 
@@ -183,7 +187,7 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 	id := req.Context().Value(contextKeyID)
 	proxy, err := ph.transport.Proxy(req)
 	if err != nil {
-		log.Printf("Failed to get Proxy for qreuest [%d] : %v", id, err)
+		log.Printf("Failed to get Proxy for request [%d] : %v", id, err)
 		return
 	}
 
