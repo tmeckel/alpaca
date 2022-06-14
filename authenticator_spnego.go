@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 
@@ -42,13 +41,11 @@ func (s *spnegoAuthenticator) do(req *http.Request, rt http.RoundTripper, hostna
 		}
 		hostname = h
 	}
-	log.Printf("SPNEGO hostname: %s", hostname)
 	header, err := provider.GetSPNEGOHeader(hostname, req)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get SPNEGO header: %w", err)
 	}
 
-	log.Printf("SPNEGO header: %s", header)
 	req.Header.Set("Proxy-Authorization", header)
 	return rt.RoundTrip(req)
 }
