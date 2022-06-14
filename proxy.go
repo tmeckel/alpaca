@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -79,9 +78,9 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 	}
 	var server net.Conn
 	if proxy == nil {
-		server, err = connectDirect(req)
+		server, err = ph.connectDirect(req)
 	} else {
-		server, err = connectViaProxy(req, proxy, ph.auth)
+		server, err = ph.connectViaProxy(req, proxy, ph.auth)
 		var oe *net.OpError
 		if errors.As(err, &oe) && oe.Op == "proxyconnect" {
 			log.Printf("[%d] Temporarily blocking proxy: %q", id, proxy.Host)
@@ -131,7 +130,7 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 	go func() { _, _ = io.Copy(client, server); client.Close() }()
 }
 
-func connectDirect(req *http.Request) (net.Conn, error) {
+func (ph ProxyHandler) connectDirect(req *http.Request) (net.Conn, error) {
 	server, err := net.Dial("tcp", req.Host)
 	if err != nil {
 		id := req.Context().Value(contextKeyID)
@@ -140,7 +139,7 @@ func connectDirect(req *http.Request) (net.Conn, error) {
 	return server, err
 }
 
-func connectViaProxy(req *http.Request, proxy *url.URL, auth authenticator) (net.Conn, error) {
+func (ph ProxyHandler) connectViaProxy(req *http.Request, proxy *url.URL, auth authenticator) (net.Conn, error) {
 	id := req.Context().Value(contextKeyID)
 	var tr transport
 	defer tr.Close()
@@ -172,18 +171,20 @@ func connectViaProxy(req *http.Request, proxy *url.URL, auth authenticator) (net
 }
 
 func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, auth authenticator) {
-	// Make a copy of the request body, in case we have to replay it (for authentication)
-	var buf bytes.Buffer
 	id := req.Context().Value(contextKeyID)
-	if n, err := io.Copy(&buf, req.Body); err != nil {
-		log.Printf("[%d] Error copying request body (got %d/%d): %v",
-			id, n, req.ContentLength, err)
-		w.WriteHeader(http.StatusInternalServerError)
+	proxy, err := ph.transport.Proxy(req)
+	if err != nil {
+		log.Printf("Failed to get Proxy for qreuest [%d] : %v", id, err)
 		return
 	}
-	rd := bytes.NewReader(buf.Bytes())
-	req.Body = io.NopCloser(rd)
-	resp, err := ph.transport.RoundTrip(req)
+
+	var resp *http.Response
+	if proxy == nil || auth == nil {
+		resp, err = ph.transport.RoundTrip(req)
+	} else {
+		resp, err = auth.do(req, ph.transport, proxy.Host)
+	}
+
 	if err != nil {
 		log.Printf("[%d] Error forwarding request: %v", id, err)
 		w.WriteHeader(http.StatusBadGateway)
@@ -200,26 +201,10 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
-		log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
-		_, err = rd.Seek(0, io.SeekStart)
-		if err != nil {
-			log.Printf("[%d] Error while seeking to start of request body: %v", id, err)
-		} else {
-			proxy, err := ph.transport.Proxy(req)
-			if err != nil {
-				log.Printf("[%d] Proxy connect error to unknown proxy: %v", id, err)
-				return
-			}
-			req.Body = io.NopCloser(rd)
-			resp, err = auth.do(req, ph.transport, proxy.Host)
-			if err != nil {
-				log.Printf("[%d] Error forwarding request (with auth): %v", id, err)
-				w.WriteHeader(http.StatusBadGateway)
-				return
-			}
-			defer resp.Body.Close()
-		}
+	if resp.StatusCode == http.StatusProxyAuthRequired {
+		log.Printf("[%d] Got %q response", id, resp.Status)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	copyResponseHeaders(w, resp)
 	w.WriteHeader(resp.StatusCode)
